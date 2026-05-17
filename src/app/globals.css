@@ -193,6 +193,11 @@ h4 {
   color: var(--amber);
 }
 
+.mode-off {
+  background: rgba(169, 163, 154, 0.15);
+  color: var(--muted);
+}
+
 .mode-missing {
   background: rgba(255, 107, 87, 0.15);
   color: var(--red);
@@ -251,6 +256,11 @@ input {
   padding: 0 11px;
 }
 
+input:disabled {
+  color: var(--muted);
+  opacity: 0.75;
+}
+
 .button-row {
   justify-content: flex-end;
   gap: 10px;
@@ -269,6 +279,12 @@ input {
   border: 1px solid transparent;
   padding: 0 14px;
   color: var(--text);
+}
+
+.small-button {
+  min-height: 32px;
+  padding: 0 10px;
+  font-size: 13px;
 }
 
 .primary-button {
@@ -445,6 +461,44 @@ input {
   color: var(--green);
 }
 
+.browser-live {
+  margin-top: 14px;
+  display: grid;
+  gap: 10px;
+}
+
+.browser-live-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.browser-live-actions a {
+  color: var(--teal);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.browser-live-actions a:hover {
+  text-decoration: underline;
+}
+
+.browser-live-actions span {
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.browser-live iframe {
+  width: 100%;
+  min-height: 420px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #050607;
+}
+
 .empty-state {
   min-height: 140px;
   display: grid;
@@ -473,6 +527,7 @@ input {
   display: grid;
   grid-template-columns: 12px 1fr;
   gap: 10px;
+  min-width: 0;
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 12px;
@@ -509,6 +564,8 @@ input {
   margin: 4px 0 2px;
   font-size: 13px;
   line-height: 1.35;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .trace-list em {

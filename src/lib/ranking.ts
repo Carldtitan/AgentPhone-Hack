@@ -53,7 +53,7 @@ function displayTime(value: string) {
 function availabilityMatch(intent: ReservationIntent, restaurant: Restaurant) {
   const requested = timeToMinutes(intent.time);
   const availableSlots = restaurant.slots.filter((slot) => slot.available);
-  if (availableSlots.length === 0) return restaurant.phone ? 0.55 : 0.25;
+  if (availableSlots.length === 0) return restaurant.reservationUrl || restaurant.website ? 0.55 : 0.25;
   if (requested === null) return 1;
 
   const bestDelta = Math.min(
@@ -87,7 +87,11 @@ export function rankRestaurants(intent: ReservationIntent, restaurants: Restaura
       const displaySpend = restaurant.averageSpend && restaurant.averageSpend > 10 ? `about $${restaurant.averageSpend}/person` : `${restaurant.price} price band`;
       const reasons = [
         `${restaurant.rating.toFixed(1)} rating across ${restaurant.reviewCount.toLocaleString()} reviews`,
-        restaurant.slots.length > 0 ? `${displayTime(restaurant.slots[0].label)} slot found` : "phone reservation fallback available",
+        restaurant.slots.length > 0
+          ? `${displayTime(restaurant.slots[0].label)} slot found`
+          : restaurant.reservationUrl || restaurant.website
+            ? "website booking path available"
+            : "manual review may be needed",
         displaySpend,
       ];
 
@@ -95,11 +99,7 @@ export function rankRestaurants(intent: ReservationIntent, restaurants: Restaura
         ...restaurant,
         score: Math.round(score * 100),
         reasons,
-        bookingPlan: restaurant.reservationUrl
-          ? "online-reservation"
-          : restaurant.phone
-            ? "phone-call"
-            : "fallback-demo",
+        bookingPlan: restaurant.reservationUrl || restaurant.website ? "online-reservation" : "fallback-demo",
       } satisfies RankedRestaurant;
     })
     .sort((a, b) => b.score - a.score)

@@ -44,11 +44,12 @@ async function postJson<T>(url: string, body: unknown): Promise<T> {
 function modeLabel(status: IntegrationStatus) {
   if (status.mode === "live") return "live";
   if (status.mode === "missing-key") return "missing";
+  if (status.mode === "disabled") return "off";
   return "safe";
 }
 
 function formatSlotLabel(value: string | undefined) {
-  if (!value) return "call fallback";
+  if (!value) return "website";
   const timeOnly = value.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
   if (!timeOnly) return value;
   let hours = Number(timeOnly[1]);
@@ -74,8 +75,7 @@ export function ReservationAgent() {
   const [booking, setBooking] = useState<BookingResult | null>(null);
   const [dinerName, setDinerName] = useState("Hackathon Demo Guest");
   const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("REDACTED");
-  const [loading, setLoading] = useState<"search" | "book" | "ingest" | "health" | null>(null);
+  const [loading, setLoading] = useState<"search" | "book" | "ingest" | "health" | "stop-browser" | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const selected = useMemo(
@@ -136,11 +136,34 @@ export function ReservationAgent() {
         restaurantId: selected.id,
         dinerName,
         userEmail: email,
-        userPhone: phone,
       });
       setBooking(result);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Booking failed");
+    } finally {
+      setLoading(null);
+    }
+  }
+
+  async function stopBrowserSession() {
+    const sessionId = booking?.browserUseSession?.sessionId;
+    if (!sessionId) return;
+    setLoading("stop-browser");
+    setError(null);
+    try {
+      await postJson("/api/browser-use/stop", { sessionId });
+      setBooking((current) =>
+        current
+          ? {
+              ...current,
+              browserUseSession: current.browserUseSession
+                ? { ...current.browserUseSession, status: "stopped", message: "Browser Use session stopped." }
+                : undefined,
+            }
+          : current,
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not stop Browser Use session");
     } finally {
       setLoading(null);
     }
@@ -164,7 +187,7 @@ export function ReservationAgent() {
             </div>
           </div>
           <div className="top-actions">
-            <span className="live-note">Calls to restaurants redirect to REDACTED</span>
+            <span className="live-note">Phone calls disabled. Browser Use runs live.</span>
             <button className="secondary-button" type="button" onClick={() => refreshHealth(true)} disabled={loading === "health"}>
               {loading === "health" ? <Loader2 className="spin" size={16} /> : <RefreshCw size={16} />}
               Check tools
@@ -247,7 +270,7 @@ export function ReservationAgent() {
             {selected ? (
               <>
                 <div className="selected-summary">
-                  {selected.imageUrl ? <img src={selected.imageUrl} alt={`${selected.name} dining room or dish`} /> : null}
+                  <ImageWithFallback src={selected.imageUrl} alt={`${selected.name} dining room or dish`} />
                   <div>
                     <h4>{selected.name}</h4>
                     <p>{selected.address}</p>
@@ -269,8 +292,8 @@ export function ReservationAgent() {
                     <input value={email} onChange={(event) => setEmail(event.target.value)} placeholder="uses .env fallback if blank" />
                   </label>
                   <label>
-                    SMS/call test phone
-                    <input value={phone} onChange={(event) => setPhone(event.target.value)} />
+                    Phone/SMS
+                    <input value="Phone calling disabled for this run" disabled />
                   </label>
                 </div>
                 <button className="primary-button wide" type="button" onClick={runBooking} disabled={loading !== null}>
@@ -289,6 +312,24 @@ export function ReservationAgent() {
                   <strong>{booking.status.toUpperCase()}</strong>
                   <p>{booking.userMessage}</p>
                   <code>{booking.confirmationCode}</code>
+                  {booking.browserUseSession?.liveUrl ? (
+                    <div className="browser-live">
+                      <div className="browser-live-actions">
+                        <a href={booking.browserUseSession.liveUrl} target="_blank" rel="noreferrer">
+                          Open Browser Use live session
+                        </a>
+                        {booking.browserUseSession.status !== "stopped" ? (
+                          <button className="secondary-button small-button" type="button" onClick={stopBrowserSession} disabled={loading !== null}>
+                            {loading === "stop-browser" ? <Loader2 className="spin" size={14} /> : null}
+                            Stop session
+                          </button>
+                        ) : (
+                          <span>stopped</span>
+                        )}
+                      </div>
+                      <iframe title="Browser Use live session" src={booking.browserUseSession.liveUrl} />
+                    </div>
+                  ) : null}
                 </div>
               </div>
             ) : null}
@@ -318,7 +359,7 @@ function RestaurantOption({
 }) {
   return (
     <button className={`restaurant-row ${selected ? "selected" : ""}`} type="button" onClick={onSelect}>
-      {restaurant.imageUrl ? <img src={restaurant.imageUrl} alt={`${restaurant.name} food`} /> : <div className="image-fallback" />}
+      <ImageWithFallback src={restaurant.imageUrl} alt={`${restaurant.name} food`} />
       <div className="restaurant-copy">
         <div className="restaurant-title">
           <strong>{restaurant.name}</strong>
@@ -333,6 +374,12 @@ function RestaurantOption({
       </div>
     </button>
   );
+}
+
+function ImageWithFallback({ src, alt }: { src?: string; alt: string }) {
+  const [failed, setFailed] = useState(false);
+  if (!src || failed) return <div className="image-fallback" aria-label={alt} />;
+  return <img src={src} alt={alt} loading="lazy" onError={() => setFailed(true)} />;
 }
 
 function EmptyState({ icon, text }: { icon: React.ReactNode; text: string }) {

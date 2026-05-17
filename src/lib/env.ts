@@ -88,6 +88,8 @@ function status(
 
 export function getIntegrationStatuses(): IntegrationStatus[] {
   const env = getEnv();
+  const agentPhoneConfigured = has("AGENTPHONE_API_KEY");
+  const agentPhoneLive = env.allowRealRestaurantCalls;
   return [
     status("gemini", "Gemini", has("GEMINI_API_KEY"), !env.demoMode, "Ready for live intent parsing when demo mode is off."),
     status("apify", "Apify", has("APIFY_TOKEN"), env.allowApifyLiveRun, "Ready; live actor runs require ALLOW_APIFY_LIVE_RUN=true."),
@@ -98,15 +100,18 @@ export function getIntegrationStatuses(): IntegrationStatus[] {
       env.allowBrowserUseLiveTask,
       "Ready; cloud browser tasks require ALLOW_BROWSER_USE_LIVE_TASK=true.",
     ),
-    status(
-      "agentphone",
-      "AgentPhone",
-      has("AGENTPHONE_API_KEY"),
-      env.allowRealRestaurantCalls || env.allowRealSmsSend,
-      env.restaurantCallOverridePhone
-        ? `Live calls enabled; restaurant calls are redirected to ${env.restaurantCallOverridePhone}.`
-        : "Ready; real calls/SMS remain gated by safety toggles.",
-    ),
+    {
+      id: "agentphone",
+      label: "AgentPhone",
+      keyPresent: agentPhoneConfigured,
+      liveEnabled: agentPhoneLive,
+      mode: agentPhoneConfigured ? (agentPhoneLive ? "live" : "disabled") : "missing-key",
+      message: agentPhoneLive
+        ? env.restaurantCallOverridePhone
+          ? `Live calls enabled; restaurant calls are redirected to ${env.restaurantCallOverridePhone}.`
+          : "Ready; real calls remain gated by safety toggles."
+        : "Phone calls and SMS are disabled for this run.",
+    },
     status(
       "agentmail",
       "AgentMail",

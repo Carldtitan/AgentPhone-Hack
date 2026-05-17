@@ -88,8 +88,16 @@ export type BookingResult = {
   restaurant: RankedRestaurant;
   timeline: TimelineStep[];
   userMessage: string;
+  browserUseSession?: BrowserUseSession;
   emailMessage?: string;
   smsMessage?: string;
+};
+
+export type BrowserUseSession = {
+  sessionId: string;
+  liveUrl?: string;
+  status?: string;
+  message: string;
 };
 
 export type StoredConversation = SearchResponse & {

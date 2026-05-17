@@ -5,7 +5,6 @@ import { saveConversation, readConversation } from "./store";
 import { discoverRestaurants } from "./integrations/apify";
 import { enrichReservationPath, planBrowserBooking } from "./integrations/browser-use";
 import { sendConfirmationEmail } from "./integrations/agentmail";
-import { placeRestaurantCall, sendSmsConfirmation } from "./integrations/agentphone";
 import { addUserMemory, searchUserMemory } from "./integrations/supermemory";
 import type { BookingRequest, BookingResult, SearchResponse, TimelineStep } from "./types";
 
@@ -50,15 +49,6 @@ export async function runRestaurantSearch(message: string): Promise<SearchRespon
   return response;
 }
 
-function bookingScript(request: BookingRequest, restaurantName: string) {
-  return [
-    `You are a concise reservation agent calling ${restaurantName}.`,
-    `Ask for a table for ${request.dinerName || "the guest"}.`,
-    "Confirm date, time, party size, cancellation policy, and confirmation code.",
-    "Do not provide payment details. If a deposit is required, ask them to hold while you text the human.",
-  ].join(" ");
-}
-
 export async function runBooking(request: BookingRequest): Promise<BookingResult> {
   const conversation = await readConversation(request.conversationId);
   if (!conversation) {
@@ -73,16 +63,17 @@ export async function runBooking(request: BookingRequest): Promise<BookingResult
   const timeline: TimelineStep[] = [];
   const dinerName = request.dinerName?.trim() || "Hackathon Demo Guest";
 
-  const browserPlan = restaurant.reservationUrl ? await planBrowserBooking(restaurant, dinerName) : null;
+  const browserPlan = restaurant.reservationUrl || restaurant.website ? await planBrowserBooking(restaurant, dinerName) : null;
   if (browserPlan) {
     timeline.push(step("Prepared online booking", browserPlan.ok ? "done" : "error", browserPlan.message, "Browser Use"));
+  } else {
+    timeline.push(step("Prepared online booking", "skipped", "No online reservation URL was available for Browser Use.", "Browser Use"));
   }
 
-  const callPlan = await placeRestaurantCall(restaurant, bookingScript(request, restaurant.name));
-  timeline.push(step("Prepared phone fallback", callPlan.ok ? "done" : "error", callPlan.message, "AgentPhone"));
+  timeline.push(step("Phone calling", "skipped", "Phone calling is disabled for this run.", "AgentPhone"));
 
   const slot = restaurant.slots.find((candidate) => candidate.available);
-  const liveWorkflowStarted = browserPlan?.mode === "live" || callPlan.mode === "live";
+  const liveWorkflowStarted = browserPlan?.mode === "live";
   const confirmationCode = `${liveWorkflowStarted ? "RUN" : "DEMO"}-${restaurant.name.replace(/[^A-Z0-9]/gi, "").slice(0, 5).toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`;
   const userMessage = liveWorkflowStarted
     ? `${restaurant.name} live workflow started for ${dinerName}${slot ? ` near ${slot.label}` : ""}. Run id: ${confirmationCode}.`
@@ -96,8 +87,7 @@ export async function runBooking(request: BookingRequest): Promise<BookingResult
   });
   timeline.push(step("Sent confirmation email", email.ok ? "done" : "error", email.message, "AgentMail"));
 
-  const sms = await sendSmsConfirmation(request.userPhone, userMessage);
-  timeline.push(step("Sent SMS confirmation", sms.ok ? "done" : "error", sms.message, "AgentPhone"));
+  timeline.push(step("SMS confirmation", "skipped", "SMS is disabled while phone calling is excluded.", "AgentPhone"));
 
   const memory = await addUserMemory(`Booked/planned restaurant: ${restaurant.name}. Cuisine: ${restaurant.cuisine.join(", ")}. Guest: ${dinerName}.`, `${request.conversationId}-booking`);
   timeline.push(step("Stored preference memory", memory.ok ? "done" : "error", memory.message, "Supermemory"));
@@ -108,8 +98,8 @@ export async function runBooking(request: BookingRequest): Promise<BookingResult
     restaurant,
     timeline,
     userMessage,
+    browserUseSession: browserPlan?.mode === "live" ? browserPlan.data : undefined,
     emailMessage: email.data,
-    smsMessage: sms.data,
   };
 
   await saveConversation({ ...conversation, selectedRestaurantId: restaurant.id, booking: result });

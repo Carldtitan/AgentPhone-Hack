@@ -14,10 +14,10 @@ Narration:
 4. It checks reservation paths through Browser Use.
 5. It ranks restaurants with deterministic scoring so the demo is stable.
 6. The user chooses one.
-7. The booking plan executes across Browser Use, AgentPhone, AgentMail, and Supermemory.
+7. The booking plan executes across Browser Use, AgentMail, and Supermemory while AgentPhone is deliberately skipped.
 
 Current live behavior:
 
 ```text
-The app uses live Gemini, Apify, Browser Use, AgentPhone, AgentMail, and Supermemory. Restaurant phone calls are redirected to REDACTED so the call flow can be tested without contacting a business.
+The app uses live Gemini, Apify, Browser Use, AgentMail, and Supermemory. Phone calls and SMS are disabled for this run, so the visible live action is Browser Use opening the restaurant site or booking flow. The result panel exposes the Browser Use live session link and embedded viewer.
 ```
