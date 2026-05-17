@@ -24,7 +24,7 @@ export type ReservationIntent = {
 export type AvailabilitySlot = {
   startTime: string;
   label: string;
-  source: "resy" | "opentable" | "restaurant" | "demo";
+  source: "resy" | "opentable" | "restaurant" | "demo" | "browser-use";
   bookingUrl?: string;
   available: boolean;
 };
@@ -48,6 +48,13 @@ export type Restaurant = {
   source: "demo" | "apify-google-maps" | "apify-resy" | "apify-opentable" | "yelp";
   menuHighlights: string[];
   slots: AvailabilitySlot[];
+  openingHours?: OpeningHours[];
+  bookabilityChecked?: boolean;
+};
+
+export type OpeningHours = {
+  day: string;
+  hours: string;
 };
 
 export type RankedRestaurant = Restaurant & {

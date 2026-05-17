@@ -11,7 +11,8 @@
     "verify": "npm run typecheck && npm run test && npm run build",
     "verify:browser": "node scripts/verify-browser.mjs",
     "seed": "node scripts/seed-demo-data.mjs",
-    "env:check": "node scripts/check-env.mjs"
+    "env:check": "node scripts/check-env.mjs",
+    "agentphone:setup": "node scripts/setup-agentphone.mjs"
   },
   "dependencies": {
     "@google/genai": "latest",

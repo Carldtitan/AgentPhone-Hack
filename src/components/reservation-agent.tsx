@@ -48,14 +48,18 @@ function modeLabel(status: IntegrationStatus) {
   return "safe";
 }
 
-function formatSlotLabel(value: string | undefined) {
-  if (!value) return "website";
-  const timeOnly = value.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
-  if (!timeOnly) return value;
-  let hours = Number(timeOnly[1]);
-  const suffix = hours >= 12 ? "PM" : "AM";
-  hours = hours % 12 || 12;
-  return `${hours}:${timeOnly[2]} ${suffix}`;
+function formatSlotLabel(value: string | undefined, restaurant?: { reservationUrl?: string; phone?: string }) {
+  if (value) {
+    const timeOnly = value.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
+    if (!timeOnly) return value;
+    let hours = Number(timeOnly[1]);
+    const suffix = hours >= 12 ? "PM" : "AM";
+    hours = hours % 12 || 12;
+    return `${hours}:${timeOnly[2]} ${suffix}`;
+  }
+  if (restaurant?.reservationUrl) return "online booking";
+  if (restaurant?.phone) return "call to reserve";
+  return "website";
 }
 
 function iconFor(id: string) {
@@ -75,7 +79,8 @@ export function ReservationAgent() {
   const [booking, setBooking] = useState<BookingResult | null>(null);
   const [dinerName, setDinerName] = useState("Hackathon Demo Guest");
   const [email, setEmail] = useState("");
-  const [loading, setLoading] = useState<"search" | "book" | "ingest" | "health" | "stop-browser" | null>(null);
+  const [phone, setPhone] = useState("");
+  const [loading, setLoading] = useState<"search" | "book" | "ingest" | "health" | "verify" | "stop-browser" | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const selected = useMemo(
@@ -136,6 +141,7 @@ export function ReservationAgent() {
         restaurantId: selected.id,
         dinerName,
         userEmail: email,
+        userPhone: phone,
       });
       setBooking(result);
     } catch (err) {
@@ -164,6 +170,32 @@ export function ReservationAgent() {
       );
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not stop Browser Use session");
+    } finally {
+      setLoading(null);
+    }
+  }
+
+  async function runVerify() {
+    if (!searchResult || !selected) return;
+    setLoading("verify");
+    setError(null);
+    try {
+      const result = await postJson<{ restaurant: RankedRestaurant; timelineStep: SearchResponse["timeline"][number] }>(
+        "/api/verify",
+        {
+          conversationId: searchResult.conversationId,
+          restaurantId: selected.id,
+        },
+      );
+      setSearchResult((current) => {
+        if (!current) return current;
+        const options = current.options
+          .map((option) => (option.id === result.restaurant.id ? result.restaurant : option))
+          .sort((a, b) => b.score - a.score);
+        return { ...current, options, timeline: [...current.timeline, result.timelineStep] };
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Verification failed");
     } finally {
       setLoading(null);
     }
@@ -292,13 +324,22 @@ export function ReservationAgent() {
                     <input value={email} onChange={(event) => setEmail(event.target.value)} placeholder="uses .env fallback if blank" />
                   </label>
                   <label>
-                    Phone/SMS
-                    <input value="Phone calling disabled for this run" disabled />
+                    Phone (optional)
+                    <input value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="for SMS confirmation" />
                   </label>
                 </div>
                 <button className="primary-button wide" type="button" onClick={runBooking} disabled={loading !== null}>
                   {loading === "book" ? <Loader2 className="spin" size={18} /> : <CheckCircle2 size={18} />}
                   Execute booking plan
+                </button>
+                <button
+                  className="secondary-button wide"
+                  type="button"
+                  onClick={runVerify}
+                  disabled={loading !== null || !(selected.reservationUrl || selected.website)}
+                >
+                  {loading === "verify" ? <Loader2 className="spin" size={18} /> : <Globe2 size={18} />}
+                  {selected.bookabilityChecked ? "Re-verify availability" : "Verify availability"}
                 </button>
               </>
             ) : (
@@ -369,7 +410,8 @@ function RestaurantOption({
         <div className="meta-line">
           <span>{restaurant.rating.toFixed(1)} stars</span>
           <span>{restaurant.price}</span>
-          <span>{formatSlotLabel(restaurant.slots[0]?.label)}</span>
+          {restaurant.distanceMiles != null ? <span>{restaurant.distanceMiles.toFixed(1)} mi</span> : null}
+          <span>{formatSlotLabel(restaurant.slots[0]?.label, restaurant)}</span>
         </div>
       </div>
     </button>
@@ -378,7 +420,13 @@ function RestaurantOption({
 
 function ImageWithFallback({ src, alt }: { src?: string; alt: string }) {
   const [failed, setFailed] = useState(false);
-  if (!src || failed) return <div className="image-fallback" aria-label={alt} />;
+  if (!src || failed) {
+    return (
+      <div className="image-fallback" aria-label={alt} role="img">
+        <Utensils size={28} />
+      </div>
+    );
+  }
   return <img src={src} alt={alt} loading="lazy" onError={() => setFailed(true)} />;
 }
 

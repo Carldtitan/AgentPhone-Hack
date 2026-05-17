@@ -12,7 +12,7 @@ describe("orchestrator", () => {
       dinerName: "Test Guest",
     });
 
-    expect(booking.confirmationCode).toMatch(/^DEMO-/);
+    expect(booking.confirmationCode).toMatch(/^LOCAL-/);
     expect(booking.timeline.length).toBeGreaterThan(1);
   });
 });

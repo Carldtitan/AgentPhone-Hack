@@ -125,14 +125,68 @@ export const demoRestaurants: Restaurant[] = [
     menuHighlights: ["spring risotto", "grilled broccolini", "vegan tasting menu"],
     slots: [{ startTime: "2026-05-17T18:45:00-07:00", label: "6:45 PM", source: "demo", available: true }],
   },
+  {
+    id: "demo-test-bistro",
+    name: "Demo Test Bistro",
+    cuisine: ["Italian", "Test"],
+    rating: 4.5,
+    reviewCount: 12,
+    price: "$$",
+    averageSpend: 45,
+    address: "REDACTED, San Francisco, CA",
+    neighborhood: "Dogpatch",
+    distanceMiles: 0.05,
+    phone: "REDACTED",
+    website: "https://example.com/demo-test-bistro",
+    imageUrl: "https://images.unsplash.com/photo-REDACTEDa2e8c0?auto=format&fit=crop&w=1200&q=80",
+    tags: ["phone-only-booking", "demo-test", "italian"],
+    source: "demo",
+    menuHighlights: ["agent test target", "phone reservation only"],
+    slots: [],
+  },
 ];
 
+const SEARCH_STOPWORDS = new Set([
+  "tonight",
+  "tomorrow",
+  "today",
+  "people",
+  "person",
+  "table",
+  "around",
+  "about",
+  "please",
+  "find",
+  "book",
+  "near",
+  "with",
+  "restaurant",
+  "restaurants",
+  "reservation",
+  "dinner",
+  "lunch",
+  "team",
+  "guest",
+  "guests",
+  "under",
+  "below",
+]);
+
 export function searchDemoRestaurants(intent: ReservationIntent) {
-  const text = `${intent.raw} ${intent.cuisine ?? ""} ${intent.dish ?? ""}`.toLowerCase();
+  const cuisine = intent.cuisine?.toLowerCase();
+  const dish = intent.dish?.toLowerCase();
   const matches = demoRestaurants.filter((restaurant) => {
-    const haystack = [restaurant.name, ...restaurant.cuisine, ...restaurant.tags, ...restaurant.menuHighlights].join(" ").toLowerCase();
-    if (!intent.cuisine && !intent.dish) return true;
-    return haystack.includes(intent.cuisine?.toLowerCase() ?? "") || text.split(/\s+/).some((word) => word.length > 4 && haystack.includes(word));
+    const haystack = [restaurant.name, ...restaurant.cuisine, ...restaurant.tags, ...restaurant.menuHighlights]
+      .join(" ")
+      .toLowerCase();
+    if (!cuisine && !dish) return true;
+    if (cuisine && haystack.includes(cuisine)) return true;
+    if (dish && haystack.includes(dish)) return true;
+    const tokens = `${intent.raw} ${cuisine ?? ""} ${dish ?? ""}`
+      .toLowerCase()
+      .split(/[^a-z0-9]+/)
+      .filter((word) => word.length > 4 && !SEARCH_STOPWORDS.has(word));
+    return tokens.some((word) => haystack.includes(word));
   });
 
   if (matches.length >= 3) return matches;
