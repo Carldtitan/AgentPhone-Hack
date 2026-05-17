@@ -78,14 +78,15 @@ export async function runBooking(request: BookingRequest): Promise<BookingResult
     timeline.push(step("Prepared online booking", browserPlan.ok ? "done" : "error", browserPlan.message, "Browser Use"));
   }
 
-  const callPlan = !restaurant.reservationUrl
-    ? await placeRestaurantCall(restaurant, bookingScript(request, restaurant.name))
-    : await placeRestaurantCall(restaurant, `Only call ${restaurant.name} if online booking fails. ${bookingScript(request, restaurant.name)}`);
+  const callPlan = await placeRestaurantCall(restaurant, bookingScript(request, restaurant.name));
   timeline.push(step("Prepared phone fallback", callPlan.ok ? "done" : "error", callPlan.message, "AgentPhone"));
 
   const slot = restaurant.slots.find((candidate) => candidate.available);
-  const confirmationCode = `DEMO-${restaurant.name.replace(/[^A-Z0-9]/gi, "").slice(0, 5).toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`;
-  const userMessage = `${restaurant.name} is ready for ${dinerName}${slot ? ` at ${slot.label}` : ""}. Confirmation: ${confirmationCode}.`;
+  const liveWorkflowStarted = browserPlan?.mode === "live" || callPlan.mode === "live";
+  const confirmationCode = `${liveWorkflowStarted ? "RUN" : "DEMO"}-${restaurant.name.replace(/[^A-Z0-9]/gi, "").slice(0, 5).toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`;
+  const userMessage = liveWorkflowStarted
+    ? `${restaurant.name} live workflow started for ${dinerName}${slot ? ` near ${slot.label}` : ""}. Run id: ${confirmationCode}.`
+    : `${restaurant.name} is ready for ${dinerName}${slot ? ` at ${slot.label}` : ""}. Confirmation: ${confirmationCode}.`;
 
   const email = await sendConfirmationEmail({
     to: request.userEmail,
@@ -102,7 +103,7 @@ export async function runBooking(request: BookingRequest): Promise<BookingResult
   timeline.push(step("Stored preference memory", memory.ok ? "done" : "error", memory.message, "Supermemory"));
 
   const result: BookingResult = {
-    status: restaurant.reservationUrl ? "dry-run" : "needs-human",
+    status: liveWorkflowStarted ? "held" : restaurant.reservationUrl ? "dry-run" : "needs-human",
     confirmationCode,
     restaurant,
     timeline,

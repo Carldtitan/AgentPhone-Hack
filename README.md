@@ -1,12 +1,12 @@
 # Table Agent
 
-Restaurant reservation agent demo for the Call My Agent Hackathon.
+Restaurant reservation agent for the Call My Agent Hackathon.
 
-The app is a Next.js local web demo with safe-by-default integrations:
+The app is a Next.js local web app with live integrations:
 
 - Apify for restaurant discovery and reservation availability actors.
 - Browser Use for website and booking-form inspection.
-- AgentPhone for phone-call fallback and SMS confirmation previews.
+- AgentPhone for phone-call fallback redirected to a test phone.
 - AgentMail for confirmation email sending.
 - Supermemory for preference memory.
 - Gemini for intent parsing when demo mode is disabled.
@@ -21,9 +21,15 @@ npm run dev
 
 Open `http://localhost:3000`.
 
-## Safety model
+## Live safety model
 
-The app works end to end in dry-run mode. Real quota-spending or real-world actions stay disabled unless these are set:
+The local `.env` can run live tools. Restaurant phone calls are redirected to your test phone:
+
+```env
+RESTAURANT_CALL_TEST_OVERRIDE_PHONE=REDACTED
+```
+
+These toggles control live behavior:
 
 ```env
 ALLOW_APIFY_LIVE_RUN=true
@@ -34,7 +40,7 @@ ALLOW_REAL_EMAIL_SEND=true
 ALLOW_REAL_BOOKING_SUBMIT=true
 ```
 
-For the hackathon demo, keep `ALLOW_REAL_BOOKING_SUBMIT=false` until a human approves the final booking details.
+Browser Use is instructed to stop if a deposit, credit card, login, or unclear policy appears.
 
 ## Demo flow
 
@@ -44,7 +50,7 @@ For the hackathon demo, keep `ALLOW_REAL_BOOKING_SUBMIT=false` until a human app
 4. It checks booking paths through Browser Use dry-run/live mode.
 5. It ranks options.
 6. Select a restaurant and execute the booking plan.
-7. The app generates phone, email, SMS, and memory actions.
+7. The app starts Browser Use, redirects the restaurant call to your phone, sends AgentMail email, and writes Supermemory context.
 
 ## Verification
 
@@ -53,4 +59,4 @@ npm run verify
 npm run verify:browser
 ```
 
-`verify` runs TypeScript checks, unit tests, and a production build. `verify:browser` expects the dev server to already be running and exercises the main browser flow.
+`verify` runs TypeScript checks, unit tests, and a production build. `verify:browser` expects the dev server to already be running and exercises the browser search flow. Set `VERIFY_LIVE_BOOKING=true` to include the live booking action; that can call your phone.

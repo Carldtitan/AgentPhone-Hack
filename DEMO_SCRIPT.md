@@ -16,8 +16,8 @@ Narration:
 6. The user chooses one.
 7. The booking plan executes across Browser Use, AgentPhone, AgentMail, and Supermemory.
 
-Fallback line if live tools are rate limited:
+Current live behavior:
 
 ```text
-The same adapter path is running, but the quota-sensitive steps are in dry-run mode. The app shows the exact call/email/browser action it would make once the sponsor credits are active.
+The app uses live Gemini, Apify, Browser Use, AgentPhone, AgentMail, and Supermemory. Restaurant phone calls are redirected to REDACTED so the call flow can be tested without contacting a business.
 ```

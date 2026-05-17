@@ -14,7 +14,6 @@ import {
   Phone,
   RefreshCw,
   Search,
-  ShieldCheck,
   Sparkles,
   Utensils,
   Users,
@@ -48,6 +47,25 @@ function modeLabel(status: IntegrationStatus) {
   return "safe";
 }
 
+function formatSlotLabel(value: string | undefined) {
+  if (!value) return "call fallback";
+  const timeOnly = value.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
+  if (!timeOnly) return value;
+  let hours = Number(timeOnly[1]);
+  const suffix = hours >= 12 ? "PM" : "AM";
+  hours = hours % 12 || 12;
+  return `${hours}:${timeOnly[2]} ${suffix}`;
+}
+
+function iconFor(id: string) {
+  if (id === "apify") return <Database size={16} />;
+  if (id === "browser-use") return <Globe2 size={16} />;
+  if (id === "agentphone") return <Phone size={16} />;
+  if (id === "agentmail") return <Mail size={16} />;
+  if (id === "supermemory") return <BrainCircuit size={16} />;
+  return <Sparkles size={16} />;
+}
+
 export function ReservationAgent() {
   const [prompt, setPrompt] = useState(samplePrompt);
   const [health, setHealth] = useState<HealthResponse | null>(null);
@@ -56,7 +74,7 @@ export function ReservationAgent() {
   const [booking, setBooking] = useState<BookingResult | null>(null);
   const [dinerName, setDinerName] = useState("Hackathon Demo Guest");
   const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
+  const [phone, setPhone] = useState("REDACTED");
   const [loading, setLoading] = useState<"search" | "book" | "ingest" | "health" | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -64,6 +82,8 @@ export function ReservationAgent() {
     () => searchResult?.options.find((option) => option.id === selectedId) ?? searchResult?.options[0],
     [searchResult, selectedId],
   );
+
+  const trace = [...(searchResult?.timeline ?? []), ...(booking?.timeline ?? [])];
 
   async function refreshHealth(live = false) {
     setLoading("health");
@@ -86,7 +106,7 @@ export function ReservationAgent() {
       const result = await postJson<SearchResponse>("/api/search", { message: prompt });
       setSearchResult(result);
       setSelectedId(result.options[0]?.id ?? null);
-      setHealth((current) => current ?? { demoMode: true, generatedAt: result.generatedAt, integrations: result.integrations, safety: {} });
+      setHealth((current) => current ?? { demoMode: false, generatedAt: result.generatedAt, integrations: result.integrations, safety: {} });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Search failed");
     } finally {
@@ -132,99 +152,81 @@ export function ReservationAgent() {
 
   return (
     <main className="app-shell">
-      <section className="workspace">
-        <aside className="left-rail" aria-label="Integration status">
+      <div className="app-frame">
+        <header className="topbar">
           <div className="brand">
             <div className="brand-mark">
               <Utensils size={22} />
             </div>
             <div>
-              <p className="eyebrow">Call My Agent</p>
+              <p className="eyebrow">Restaurant reservation agent</p>
               <h1>Table Agent</h1>
             </div>
           </div>
-
-          <div className="status-panel">
-            <div className="panel-heading">
-              <ShieldCheck size={18} />
-              <span>Free-tier guardrails</span>
-            </div>
-            <p className="muted">
-              Real calls, email, SMS, browser submission, and Apify actor runs stay off unless the env toggles say otherwise.
-            </p>
-            <button className="icon-button wide" type="button" onClick={() => refreshHealth(true)} disabled={loading === "health"}>
+          <div className="top-actions">
+            <span className="live-note">Calls to restaurants redirect to REDACTED</span>
+            <button className="secondary-button" type="button" onClick={() => refreshHealth(true)} disabled={loading === "health"}>
               {loading === "health" ? <Loader2 className="spin" size={16} /> : <RefreshCw size={16} />}
-              Check live auth
+              Check tools
             </button>
           </div>
+        </header>
 
-          <div className="integration-list">
-            {(health?.integrations ?? []).map((integration) => (
-              <div className="integration-row" key={integration.id}>
-                <div className="integration-icon">
-                  {integration.id === "apify" ? <Database size={16} /> : null}
-                  {integration.id === "browser-use" ? <Globe2 size={16} /> : null}
-                  {integration.id === "agentphone" ? <Phone size={16} /> : null}
-                  {integration.id === "agentmail" ? <Mail size={16} /> : null}
-                  {integration.id === "supermemory" ? <BrainCircuit size={16} /> : null}
-                  {integration.id === "gemini" ? <Sparkles size={16} /> : null}
-                </div>
-                <div>
-                  <strong>{integration.label}</strong>
-                  <span>{integration.message}</span>
-                </div>
-                <b className={`mode mode-${modeLabel(integration)}`}>{modeLabel(integration)}</b>
-              </div>
-            ))}
-          </div>
-        </aside>
+        <section className="tool-strip" aria-label="Tool status">
+          {(health?.integrations ?? []).map((integration) => (
+            <div className="tool-pill" key={integration.id} title={integration.message}>
+              {iconFor(integration.id)}
+              <span>{integration.label}</span>
+              <b className={`mode mode-${modeLabel(integration)}`}>{modeLabel(integration)}</b>
+            </div>
+          ))}
+        </section>
 
-        <section className="main-panel">
-          <div className="command-band">
+        <section className="request-card">
+          <div className="request-header">
             <div>
-              <p className="eyebrow">Dinner request</p>
-              <h2>Ask for a table. The agent plans the rest.</h2>
+              <p className="eyebrow">Request</p>
+              <h2>Find a restaurant and run the booking flow.</h2>
             </div>
-            <div className="quick-facts" aria-label="Parsed request preview">
+            <div className="quick-facts">
               <span>
-                <MapPin size={15} /> San Francisco
+                <MapPin size={15} /> SF
               </span>
               <span>
-                <Users size={15} /> Team dinner
+                <Users size={15} /> Party
               </span>
               <span>
-                <Calendar size={15} /> Tonight
+                <Calendar size={15} /> Time
               </span>
             </div>
           </div>
-
-          <div className="composer">
-            <textarea value={prompt} onChange={(event) => setPrompt(event.target.value)} aria-label="Restaurant request" />
-            <div className="button-row">
-              <button className="primary-button" type="button" onClick={runSearch} disabled={loading !== null}>
-                {loading === "search" ? <Loader2 className="spin" size={18} /> : <Search size={18} />}
-                Find tables
-              </button>
-              <button className="secondary-button" type="button" onClick={runIngest} disabled={loading !== null}>
-                {loading === "ingest" ? <Loader2 className="spin" size={18} /> : <Database size={18} />}
-                Refresh cache
-              </button>
-            </div>
+          <textarea value={prompt} onChange={(event) => setPrompt(event.target.value)} aria-label="Restaurant request" />
+          <div className="button-row">
+            <button className="secondary-button" type="button" onClick={runIngest} disabled={loading !== null}>
+              {loading === "ingest" ? <Loader2 className="spin" size={18} /> : <Database size={18} />}
+              Refresh data
+            </button>
+            <button className="primary-button" type="button" onClick={runSearch} disabled={loading !== null}>
+              {loading === "search" ? <Loader2 className="spin" size={18} /> : <Search size={18} />}
+              Find tables
+            </button>
           </div>
+        </section>
 
-          {error ? (
-            <div className="error-bar">
-              <AlertTriangle size={18} />
-              {error}
+        {error ? (
+          <div className="error-bar">
+            <AlertTriangle size={18} />
+            {error}
+          </div>
+        ) : null}
+
+        <section className="work-grid">
+          <section className="panel" aria-label="Restaurant options">
+            <div className="section-title">
+              <h3>Options</h3>
+              <span>{searchResult ? `${searchResult.options.length} found` : "waiting"}</span>
             </div>
-          ) : null}
-
-          <div className="results-grid">
-            <section className="options-list" aria-label="Restaurant options">
-              <div className="section-title">
-                <h3>Ranked options</h3>
-                {searchResult ? <span>{searchResult.options.length} candidates</span> : <span>Run a search</span>}
-              </div>
+            <div className="restaurant-list">
               {(searchResult?.options ?? []).map((restaurant) => (
                 <RestaurantOption
                   key={restaurant.id}
@@ -233,87 +235,74 @@ export function ReservationAgent() {
                   onSelect={() => setSelectedId(restaurant.id)}
                 />
               ))}
-              {!searchResult ? (
-                <div className="empty-state">
-                  <Search size={24} />
-                  <p>Search results, live tool traces, and booking actions will appear here.</p>
-                </div>
-              ) : null}
-            </section>
+              {!searchResult ? <EmptyState icon={<Search size={24} />} text="Search to see ranked restaurants." /> : null}
+            </div>
+          </section>
 
-            <section className="action-panel" aria-label="Booking panel">
-              <div className="section-title">
-                <h3>Action path</h3>
-                <span>{selected?.bookingPlan ?? "waiting"}</span>
-              </div>
-              {selected ? (
-                <>
-                  <div className="selected-summary">
-                    {selected.imageUrl ? <img src={selected.imageUrl} alt={`${selected.name} dining room or dish`} /> : null}
-                    <div>
-                      <h4>{selected.name}</h4>
-                      <p>{selected.address}</p>
-                      <strong>{selected.score}/100 match</strong>
-                    </div>
-                  </div>
-                  <div className="form-grid">
-                    <label>
-                      Name
-                      <input value={dinerName} onChange={(event) => setDinerName(event.target.value)} />
-                    </label>
-                    <label>
-                      Email
-                      <input value={email} onChange={(event) => setEmail(event.target.value)} placeholder="optional for dry run" />
-                    </label>
-                    <label>
-                      Phone
-                      <input value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="optional for dry run" />
-                    </label>
-                  </div>
-                  <button className="primary-button wide" type="button" onClick={runBooking} disabled={loading !== null}>
-                    {loading === "book" ? <Loader2 className="spin" size={18} /> : <CheckCircle2 size={18} />}
-                    Execute booking plan
-                  </button>
-                </>
-              ) : (
-                <div className="empty-state">
-                  <Utensils size={24} />
-                  <p>Select a restaurant after searching.</p>
-                </div>
-              )}
-
-              {booking ? (
-                <div className="booking-result">
-                  <CheckCircle2 size={20} />
+          <section className="panel" aria-label="Booking panel">
+            <div className="section-title">
+              <h3>Selected action</h3>
+              <span>{selected?.bookingPlan ?? "none"}</span>
+            </div>
+            {selected ? (
+              <>
+                <div className="selected-summary">
+                  {selected.imageUrl ? <img src={selected.imageUrl} alt={`${selected.name} dining room or dish`} /> : null}
                   <div>
-                    <strong>{booking.status.toUpperCase()}</strong>
-                    <p>{booking.userMessage}</p>
-                    <code>{booking.confirmationCode}</code>
+                    <h4>{selected.name}</h4>
+                    <p>{selected.address}</p>
+                    <strong>{selected.score}/100 match</strong>
                   </div>
                 </div>
-              ) : null}
-            </section>
-          </div>
+                <div className="reason-list">
+                  {selected.reasons.map((reason) => (
+                    <span key={reason}>{reason}</span>
+                  ))}
+                </div>
+                <div className="form-grid">
+                  <label>
+                    Name
+                    <input value={dinerName} onChange={(event) => setDinerName(event.target.value)} />
+                  </label>
+                  <label>
+                    Email confirmation
+                    <input value={email} onChange={(event) => setEmail(event.target.value)} placeholder="uses .env fallback if blank" />
+                  </label>
+                  <label>
+                    SMS/call test phone
+                    <input value={phone} onChange={(event) => setPhone(event.target.value)} />
+                  </label>
+                </div>
+                <button className="primary-button wide" type="button" onClick={runBooking} disabled={loading !== null}>
+                  {loading === "book" ? <Loader2 className="spin" size={18} /> : <CheckCircle2 size={18} />}
+                  Execute booking plan
+                </button>
+              </>
+            ) : (
+              <EmptyState icon={<Utensils size={24} />} text="Choose a restaurant after searching." />
+            )}
+
+            {booking ? (
+              <div className="booking-result">
+                <CheckCircle2 size={20} />
+                <div>
+                  <strong>{booking.status.toUpperCase()}</strong>
+                  <p>{booking.userMessage}</p>
+                  <code>{booking.confirmationCode}</code>
+                </div>
+              </div>
+            ) : null}
+          </section>
         </section>
 
-        <aside className="right-rail" aria-label="Agent trace">
+        <section className="panel trace-panel" aria-label="Agent trace">
           <div className="section-title">
-            <h3>Agent trace</h3>
-            <span>{searchResult ? "latest run" : "idle"}</span>
+            <h3>Tool log</h3>
+            <span>{trace.length ? `${trace.length} steps` : "idle"}</span>
           </div>
-          <TraceList steps={[...(searchResult?.timeline ?? []), ...(booking?.timeline ?? [])]} />
-          <div className="memory-panel">
-            <div className="panel-heading">
-              <BrainCircuit size={18} />
-              <span>Memory context</span>
-            </div>
-            {(searchResult?.memoryContext ?? []).slice(0, 3).map((memory) => (
-              <p key={memory}>{memory}</p>
-            ))}
-            {!searchResult?.memoryContext.length ? <p className="muted">Supermemory context will show here when available.</p> : null}
-          </div>
-        </aside>
-      </section>
+          <TraceList steps={trace} />
+        </section>
+      </div>
     </main>
   );
 }
@@ -339,21 +328,25 @@ function RestaurantOption({
         <div className="meta-line">
           <span>{restaurant.rating.toFixed(1)} stars</span>
           <span>{restaurant.price}</span>
-          <span>{restaurant.slots[0]?.label ?? "call fallback"}</span>
+          <span>{formatSlotLabel(restaurant.slots[0]?.label)}</span>
         </div>
       </div>
     </button>
   );
 }
 
+function EmptyState({ icon, text }: { icon: React.ReactNode; text: string }) {
+  return (
+    <div className="empty-state">
+      {icon}
+      <p>{text}</p>
+    </div>
+  );
+}
+
 function TraceList({ steps }: { steps: SearchResponse["timeline"] }) {
   if (steps.length === 0) {
-    return (
-      <div className="empty-state compact">
-        <ShieldCheck size={22} />
-        <p>No run yet.</p>
-      </div>
-    );
+    return <EmptyState icon={<CheckCircle2 size={22} />} text="No actions yet." />;
   }
 
   return (

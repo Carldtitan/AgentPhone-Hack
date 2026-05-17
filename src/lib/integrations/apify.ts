@@ -27,9 +27,18 @@ function normalizeSlots(item: Record<string, unknown>, fallbackDate: string): Av
       if (!slot || typeof slot !== "object") return null;
       const row = slot as Record<string, unknown>;
       const startTime = String(row.startTime ?? row.availableAt ?? `${fallbackDate}T19:${index}0:00`);
+      const timeOnly = startTime.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
+      const label = timeOnly
+        ? new Date(`${fallbackDate}T${timeOnly[1].padStart(2, "0")}:${timeOnly[2]}:00`).toLocaleTimeString([], {
+            hour: "numeric",
+            minute: "2-digit",
+          })
+        : startTime.includes(" ")
+          ? startTime.split(" ").at(-1) ?? startTime
+          : new Date(startTime).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
       return {
         startTime,
-        label: startTime.includes(" ") ? startTime.split(" ").at(-1) ?? startTime : new Date(startTime).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }),
+        label,
         source: "resy" as const,
         bookingUrl: typeof row.link === "string" ? row.link : undefined,
         available: row.isAvailable !== false,
@@ -41,6 +50,7 @@ function normalizeSlots(item: Record<string, unknown>, fallbackDate: string): Av
 function mapResyItem(item: Record<string, unknown>, intent: ReservationIntent): Restaurant {
   const cuisine = Array.isArray(item.cuisine) ? item.cuisine.map(String) : [String(item.type ?? intent.cuisine ?? "Restaurant")];
   const name = String(item.name ?? "Restaurant");
+  const spend = Number(item.averageSpendAmount ?? 0);
   return {
     id: `resy-${String(item.id ?? name).toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
     name,
@@ -48,7 +58,7 @@ function mapResyItem(item: Record<string, unknown>, intent: ReservationIntent): 
     rating: Number(item.rating ?? 4.4),
     reviewCount: Number(item.ratingCount ?? 100),
     price: normalizePrice(item.priceRange),
-    averageSpend: Number(item.averageSpendAmount ?? 0) || undefined,
+    averageSpend: spend > 10 ? spend : undefined,
     address: [item.address, item.locality, item.region].filter(Boolean).join(", "),
     neighborhood: typeof item.neighborhood === "string" ? item.neighborhood : undefined,
     phone: typeof item.phone === "string" ? item.phone : undefined,
@@ -100,7 +110,8 @@ export async function discoverRestaurants(intent: ReservationIntent): Promise<To
   const env = getEnv();
   const cacheKey = intentCacheKey(intent);
   const cached = await readRestaurantCache(cacheKey);
-  if (cached && cached.length >= 3) {
+  const cacheHasLiveData = cached?.some((restaurant) => restaurant.source !== "demo");
+  if (cached && cached.length >= 3 && (!env.allowApifyLiveRun || cacheHasLiveData)) {
     return { ok: true, mode: "fallback", data: cached, message: `Loaded ${cached.length} restaurants from local cache.` };
   }
 
@@ -121,7 +132,8 @@ export async function discoverRestaurants(intent: ReservationIntent): Promise<To
     const city = /san francisco|sf/i.test(intent.location) ? "San Francisco" : intent.location;
     const items = await runActor<Record<string, unknown>>(env.apifyResyActor, {
       city,
-      query: intent.cuisine ?? intent.dish ?? "restaurant",
+      query: intent.dish ?? intent.cuisine ?? "restaurant",
+      cuisine: intent.cuisine,
       includeAvailability: true,
       date: intent.date,
       partySize: intent.partySize,

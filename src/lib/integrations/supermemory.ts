@@ -27,7 +27,7 @@ export async function searchUserMemory(query: string): Promise<ToolResult<string
         searchMode: "hybrid",
         limit: 5,
       }),
-      timeoutMs: 12000,
+      timeoutMs: 45000,
     });
     const memories = (data.results ?? []).map((result) => result.memory ?? result.chunk ?? "").filter(Boolean);
     return { ok: true, mode: "live", data: memories, message: `Supermemory returned ${memories.length} memories.` };
@@ -65,7 +65,7 @@ export async function addUserMemory(content: string, customId: string): Promise<
           source: "restaurant-agent",
         },
       }),
-      timeoutMs: 12000,
+      timeoutMs: 45000,
     });
     return { ok: true, mode: "live", data: data.id ?? data.status ?? "queued", message: "Supermemory queued the conversation memory." };
   } catch (error) {

@@ -24,15 +24,17 @@ if (!bodyText.includes("Table Agent") || !bodyText.includes("Find tables")) {
 }
 
 await page.getByRole("button", { name: /Find tables/i }).click();
-await page.getByRole("button", { name: /Execute booking plan/i }).waitFor({ timeout: 30000 });
+await page.getByRole("button", { name: /Execute booking plan/i }).waitFor({ timeout: 120000 });
 
 const optionCount = await page.locator(".restaurant-row").count();
 if (optionCount < 1) {
   throw new Error("Search did not render restaurant options.");
 }
 
-await page.getByRole("button", { name: /Execute booking plan/i }).click();
-await page.locator(".booking-result code").waitFor({ timeout: 30000 });
+if (process.env.VERIFY_LIVE_BOOKING === "true") {
+  await page.getByRole("button", { name: /Execute booking plan/i }).click();
+  await page.locator(".booking-result code").waitFor({ timeout: 30000 });
+}
 await page.screenshot({ path: ".data/browser-booking.png", fullPage: true });
 
 const overlay = await page.locator("[data-nextjs-dialog], .vite-error-overlay, #webpack-dev-server-client-overlay").count();

@@ -34,6 +34,22 @@ const cuisineTerms = [
   "ramen",
 ];
 
+function cleanLocation(input: string | undefined) {
+  const fallback = getEnv().demoLocation;
+  if (!input) return fallback;
+  const cleaned = input
+    .replace(/\b(for|party of)\s+\d{1,2}.*$/i, "")
+    .replace(/\b(tonight|tomorrow|today|around|at|under|below|less than|max|maximum)\b.*$/i, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/[,.]$/, "");
+  if (!cleaned) return fallback;
+  if (/560\s+20th/i.test(cleaned) && !/san francisco|sf/i.test(cleaned)) {
+    return `${cleaned}, San Francisco, CA`;
+  }
+  return cleaned;
+}
+
 function isoDateFromPhrase(input: string) {
   const now = new Date();
   if (/tomorrow/i.test(input)) {
@@ -47,7 +63,7 @@ export function parseIntentDeterministic(raw: string): ReservationIntent {
   const partyMatch = lower.match(/(?:for|party of)\s+(\d{1,2})/);
   const budgetMatch = lower.match(/(?:under|below|less than|max|maximum)\s+\$?(\d{2,4})/);
   const timeMatch = lower.match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)/);
-  const locationMatch = raw.match(/\b(?:near|around|in)\s+([^,.]+(?:,\s*[A-Z]{2})?)/i);
+  const locationMatch = raw.match(/\b(?:near|around|in)\s+(.+?)(?:,|\.|$)/i);
   const cuisine = cuisineTerms.find((term) => lower.includes(term));
   const preferences = [
     lower.includes("outdoor") ? "outdoor seating" : "",
@@ -67,7 +83,7 @@ export function parseIntentDeterministic(raw: string): ReservationIntent {
     raw,
     cuisine,
     dish: cuisine ? undefined : raw.split(/[,.]/)[0]?.slice(0, 60),
-    location: locationMatch?.[1]?.trim() || getEnv().demoLocation,
+    location: cleanLocation(locationMatch?.[1]),
     date: isoDateFromPhrase(raw),
     time,
     partySize: partyMatch ? Number(partyMatch[1]) : 2,
@@ -78,11 +94,12 @@ export function parseIntentDeterministic(raw: string): ReservationIntent {
 
 export async function parseIntent(raw: string): Promise<ToolResult<ReservationIntent>> {
   const env = getEnv();
+  const deterministic = parseIntentDeterministic(raw);
   if (env.demoMode || !env.geminiApiKey) {
     return {
       ok: true,
       mode: env.geminiApiKey ? "dry-run" : "fallback",
-      data: parseIntentDeterministic(raw),
+      data: deterministic,
       message: env.demoMode ? "Parsed locally to avoid free-tier LLM calls in demo mode." : "Gemini key missing; parsed locally.",
     };
   }
@@ -93,13 +110,31 @@ export async function parseIntent(raw: string): Promise<ToolResult<ReservationIn
       model: env.geminiModel,
       contents: `Extract a restaurant reservation request as compact JSON. Today is ${new Date()
         .toISOString()
-        .slice(0, 10)}. Request: ${raw}`,
+        .slice(0, 10)}. Return only these keys: raw, cuisine, dish, location, date, time, partySize, budgetPerPerson, preferences. Request: ${raw}`,
       config: {
         temperature: 0.1,
         responseMimeType: "application/json",
       },
     });
-    const parsed = intentSchema.parse(JSON.parse(response.text ?? "{}"));
+    const partial = JSON.parse(response.text ?? "{}") as Partial<ReservationIntent>;
+    const parsedBudget = Number(partial.budgetPerPerson);
+    const parsed = intentSchema.parse({
+      ...deterministic,
+      cuisine: typeof partial.cuisine === "string" ? partial.cuisine : deterministic.cuisine,
+      dish: typeof partial.dish === "string" ? partial.dish : deterministic.dish,
+      raw,
+      location: cleanLocation(partial.location ?? deterministic.location),
+      date: typeof partial.date === "string" ? partial.date : deterministic.date,
+      time: typeof partial.time === "string" ? partial.time : deterministic.time,
+      partySize: Number(partial.partySize ?? deterministic.partySize),
+      budgetPerPerson:
+        partial.budgetPerPerson === undefined || partial.budgetPerPerson === null
+          ? deterministic.budgetPerPerson
+          : Number.isFinite(parsedBudget)
+            ? parsedBudget
+            : deterministic.budgetPerPerson,
+      preferences: Array.isArray(partial.preferences) ? partial.preferences : deterministic.preferences,
+    });
     return {
       ok: true,
       mode: "live",
@@ -110,7 +145,7 @@ export async function parseIntent(raw: string): Promise<ToolResult<ReservationIn
     return {
       ok: false,
       mode: "fallback",
-      data: parseIntentDeterministic(raw),
+      data: deterministic,
       message: `Gemini parse failed; used local parser. ${error instanceof Error ? error.message : String(error)}`,
     };
   }

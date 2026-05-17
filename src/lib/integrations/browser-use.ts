@@ -9,44 +9,14 @@ type BrowserTask = {
 
 export async function enrichReservationPath(restaurant: RankedRestaurant): Promise<ToolResult<RankedRestaurant>> {
   const env = getEnv();
-  if (!env.browserUseApiKey || !env.allowBrowserUseLiveTask) {
-    return {
-      ok: true,
-      mode: env.browserUseApiKey ? "dry-run" : "missing-key",
-      data: restaurant,
-      message: restaurant.reservationUrl
-        ? `Would inspect ${restaurant.reservationUrl} for final slot and policy details.`
-        : `Would inspect ${restaurant.website ?? restaurant.name} for phone/booking details.`,
-    };
-  }
-
-  const task = restaurant.reservationUrl
-    ? `Visit ${restaurant.reservationUrl}. Check reservation availability only. Do not submit or book anything. Summarize available times and cancellation policy.`
-    : `Visit ${restaurant.website}. Find the reservations page, menu highlights, and preferred booking method. Do not submit any form.`;
-
-  try {
-    const base = env.browserUseBaseUrl.replace(/\/$/, "");
-    const url = base.includes("/api/v3") ? `${base}/sessions` : `${base}/tasks`;
-    const response = await fetchJson<BrowserTask>(url, {
-      method: "POST",
-      headers: { "X-Browser-Use-API-Key": env.browserUseApiKey },
-      body: JSON.stringify({ task, llm: "browser-use-2.0" }),
-      timeoutMs: 20000,
-    });
-    return {
-      ok: true,
-      mode: "live",
-      data: restaurant,
-      message: `Started Browser Use task ${response.id ?? response.sessionId ?? "unknown"} for non-submitting availability inspection.`,
-    };
-  } catch (error) {
-    return {
-      ok: false,
-      mode: "fallback",
-      data: restaurant,
-      message: `Browser Use task failed; continuing with known reservation URL. ${error instanceof Error ? error.message : String(error)}`,
-    };
-  }
+  return {
+    ok: true,
+    mode: env.browserUseApiKey ? "dry-run" : "missing-key",
+    data: restaurant,
+    message: restaurant.reservationUrl
+      ? `Reservation link found: ${restaurant.reservationUrl}`
+      : `No booking link found; phone fallback will use ${restaurant.phone ?? "restaurant phone if available"}.`,
+  };
 }
 
 export async function planBrowserBooking(restaurant: RankedRestaurant, dinerName: string): Promise<ToolResult<string>> {
@@ -62,16 +32,28 @@ export async function planBrowserBooking(restaurant: RankedRestaurant, dinerName
   }
 
   try {
-    const task = `Book a restaurant reservation for ${dinerName} at ${restaurant.name}. Use ${restaurant.reservationUrl}. Only submit if all displayed details match the requested party/time and no deposit is required.`;
+    const task = `Book a restaurant reservation for ${dinerName} at ${restaurant.name}. Use ${restaurant.reservationUrl ?? restaurant.website}. Only submit if all displayed details match the requested party/time, no deposit is required, and the final confirmation page does not require credit card details. If a deposit, credit card, login, or unclear policy appears, stop and summarize exactly what human approval is needed.`;
     const base = env.browserUseBaseUrl.replace(/\/$/, "");
     const url = base.includes("/api/v3") ? `${base}/sessions` : `${base}/tasks`;
     const response = await fetchJson<BrowserTask>(url, {
       method: "POST",
       headers: { "X-Browser-Use-API-Key": env.browserUseApiKey },
-      body: JSON.stringify({ task, llm: "browser-use-2.0" }),
+      body: JSON.stringify({
+        task,
+        model: "bu-mini",
+        maxCostUsd: 1,
+        keepAlive: false,
+        enableRecording: true,
+        agentmail: false,
+      }),
       timeoutMs: 20000,
     });
-    return { ok: true, mode: "live", data: `Browser task started: ${response.id ?? response.sessionId}`, message: "Browser Use booking task started." };
+    return {
+      ok: true,
+      mode: "live",
+      data: `Browser task started: ${response.id ?? response.sessionId}`,
+      message: `Browser Use booking task started${response.id ? `: ${response.id}` : ""}${"liveUrl" in response && response.liveUrl ? ` (${response.liveUrl})` : ""}.`,
+    };
   } catch (error) {
     return { ok: false, mode: "fallback", data: message, message: `Browser Use booking failed; dry-run plan kept. ${error instanceof Error ? error.message : String(error)}` };
   }

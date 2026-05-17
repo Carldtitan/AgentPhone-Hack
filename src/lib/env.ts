@@ -47,7 +47,11 @@ export function getEnv() {
     agentPhoneApiKey: stringEnv("AGENTPHONE_API_KEY"),
     agentPhoneBaseUrl: stringEnv("AGENTPHONE_BASE_URL", "https://api.agentphone.ai"),
     agentPhoneAgentId: stringEnv("AGENTPHONE_AGENT_ID"),
+    agentPhoneAgentName: stringEnv("AGENTPHONE_AGENT_NAME", "Table Agent Reservation Caller"),
+    agentPhoneNumberId: stringEnv("AGENTPHONE_NUMBER_ID"),
     agentPhoneFromNumber: stringEnv("AGENTPHONE_FROM_NUMBER"),
+    restaurantCallOverridePhone: stringEnv("RESTAURANT_CALL_TEST_OVERRIDE_PHONE"),
+    agentPhoneAutoCreateAgent: boolEnv("AGENTPHONE_AUTO_CREATE_AGENT", true),
     allowRealRestaurantCalls: boolEnv("ALLOW_REAL_RESTAURANT_CALLS", false),
     allowRealSmsSend: boolEnv("ALLOW_REAL_SMS_SEND", false),
 
@@ -99,7 +103,9 @@ export function getIntegrationStatuses(): IntegrationStatus[] {
       "AgentPhone",
       has("AGENTPHONE_API_KEY"),
       env.allowRealRestaurantCalls || env.allowRealSmsSend,
-      "Ready; real calls/SMS remain gated by safety toggles.",
+      env.restaurantCallOverridePhone
+        ? `Live calls enabled; restaurant calls are redirected to ${env.restaurantCallOverridePhone}.`
+        : "Ready; real calls/SMS remain gated by safety toggles.",
     ),
     status(
       "agentmail",
@@ -108,6 +114,6 @@ export function getIntegrationStatuses(): IntegrationStatus[] {
       env.allowRealEmailSend,
       "Ready; real email sends require ALLOW_REAL_EMAIL_SEND=true.",
     ),
-    status("supermemory", "Supermemory", has("SUPERMEMORY_API_KEY"), !env.demoMode, "Ready; memory calls are skipped in demo mode."),
+    status("supermemory", "Supermemory", has("SUPERMEMORY_API_KEY"), !env.demoMode, "Ready for live preference memory when demo mode is off."),
   ];
 }

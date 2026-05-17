@@ -24,6 +24,7 @@ Required for a full live demo:
    - Get it from AgentPhone settings.
    - Required for real SMS and restaurant phone calls.
    - Also provide `AGENTPHONE_FROM_NUMBER` after provisioning a number.
+   - Set `RESTAURANT_CALL_TEST_OVERRIDE_PHONE=REDACTED` to redirect restaurant calls to your phone.
 
 5. `AGENTMAIL_API_KEY`
    - Get it from AgentMail Console.
@@ -46,12 +47,12 @@ Optional but useful:
 
 Safety toggles:
 
-1. Keep `ALLOW_REAL_RESTAURANT_CALLS=false` until the demo script is ready.
-2. Keep `ALLOW_REAL_SMS_SEND=false` until the phone number is verified.
-3. Keep `ALLOW_REAL_EMAIL_SEND=false` until the AgentMail inbox is verified.
-4. Keep `ALLOW_REAL_BOOKING_SUBMIT=false` unless a human has explicitly approved the final booking.
-5. Keep `ALLOW_APIFY_LIVE_RUN=false` unless you want to spend Apify credits on a fresh scrape.
-6. Keep `ALLOW_BROWSER_USE_LIVE_TASK=false` unless you want Browser Use to start a cloud browser task.
+1. `ALLOW_REAL_RESTAURANT_CALLS=true` starts AgentPhone calls. With `RESTAURANT_CALL_TEST_OVERRIDE_PHONE` set, restaurant calls go to that number instead.
+2. `ALLOW_REAL_EMAIL_SEND=true` sends AgentMail confirmation emails.
+3. `ALLOW_REAL_BOOKING_SUBMIT=true` lets Browser Use attempt a real online booking, but the prompt stops at deposits, credit cards, login, or unclear policies.
+4. `ALLOW_APIFY_LIVE_RUN=true` spends Apify credits on fresh restaurant data.
+5. `ALLOW_BROWSER_USE_LIVE_TASK=true` starts Browser Use cloud browser sessions.
+6. Outbound SMS may still require AgentPhone 10DLC/MCP messaging setup.
 
 MCP notes:
 
