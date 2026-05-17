@@ -1,0 +1,42 @@
+{
+  "mcpServers": {
+    "apify": {
+      "url": "https://mcp.apify.com",
+      "headers": {
+        "Authorization": "Bearer YOUR_APIFY_TOKEN"
+      }
+    },
+    "opentable-booker": {
+      "url": "https://clearpath--opentable-booker.apify.actor/mcp",
+      "headers": {
+        "Authorization": "Bearer YOUR_APIFY_TOKEN"
+      }
+    },
+    "resy-booker": {
+      "url": "https://clearpath--resy-booker.apify.actor/mcp",
+      "headers": {
+        "Authorization": "Bearer YOUR_APIFY_TOKEN"
+      }
+    },
+    "browser-use": {
+      "url": "https://api.browser-use.com/v3/mcp",
+      "headers": {
+        "x-browser-use-api-key": "YOUR_BROWSER_USE_API_KEY"
+      }
+    },
+    "agentphone": {
+      "command": "npx",
+      "args": ["-y", "agentphone-mcp"],
+      "env": {
+        "AGENTPHONE_API_KEY": "YOUR_AGENTPHONE_API_KEY",
+        "AGENTPHONE_BASE_URL": "https://api.agentphone.ai"
+      }
+    },
+    "agentmail": {
+      "url": "https://mcp.agentmail.to/mcp"
+    },
+    "supermemory": {
+      "url": "https://mcp.supermemory.ai/mcp"
+    }
+  }
+}
